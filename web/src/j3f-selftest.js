@@ -15,6 +15,9 @@ import { quatDistance } from './j3f-animation.js';
 import { FIT_MARGIN, collectFitPoints, fitDistance, worstNdc } from './j3f-framing.js';
 import { ORGANIC, organicCameraFactor } from './j3f-organic.js';
 import { IDLE, POINTER, assemblyWeight, resolveWeights } from './j3f-interaction.js';
+import {
+  FLOW, RING_ORDER, flowAssemblyWeight, flowGrade, flowWave, resolveFlow,
+} from './j3f-flow.js';
 
 const TOL_END = 1e-5;
 const TOL_REVERSIBLE = 1e-9;
@@ -54,7 +57,7 @@ export function runSelfTest(ctx) {
   const {
     baselineAnimation, organicAnimation,
     renderer, scene, camera, params, result,
-    errors, warnings, symbolRoot, readScroll, interaction,
+    errors, warnings, symbolRoot, readScroll, interaction, flow,
   } = ctx;
   const animation = baselineAnimation;
   const checks = [];
@@ -672,6 +675,324 @@ export function runSelfTest(ctx) {
 
   interaction.reset();
 
+  // ===== CIRCULAR FLOW (Fase 2) ===========================================
+  //
+  // A onda é aditiva sobre a pose da Organic e ANTERIOR ao idle/pointer. Como
+  // o idle, ela MEXE o objeto em t = 1 - é o objetivo. O que estes testes
+  // protegem é a base: com o flow desligado nada muda, e a fase é uma função
+  // pura do tempo, exatamente periódica, com amplitudes dentro do teto.
+
+  const flowOff = resolveFlow({ ...BASELINE, flowEnabled: false }, DESKTOP, {});
+  const flowFull = resolveFlow(BASELINE, DESKTOP, {});
+
+  // F1. flow OFF = Organic exatamente
+  flow.reset();
+  org.apply(0.62, ORG);
+  const poseNoFlow = poseOf();
+  flow.apply(org, 41.7, 0.62, flowOff);
+  const flowOffDelta = diff1d(poseNoFlow, poseOf());
+  add('flow · circular flow OFF = Organic exata', !flowOff.on && flowOffDelta === 0,
+    `on=${flowOff.on} · Δ máx ${flowOffDelta.toExponential(2)}`);
+
+  // F2. as três camadas desligadas devolvem a Organic bit a bit
+  org.apply(0.35, ORG);
+  const poseAllOff = poseOf();
+  flow.apply(org, 123.456, 0.35, flowOff);
+  interaction.reset();
+  interaction.captureBase(org);
+  interaction.apply(org, camera, 123.456, 0.35, wOff);
+  const allOffDelta = diff1d(poseAllOff, poseOf());
+  add('flow · flow+idle+pointer OFF = Organic exata', allOffDelta === 0,
+    `Δ máx ${allOffDelta.toExponential(2)} (as três camadas desligadas)`);
+
+  // F3. a fase percorre o ANEL FECHADO T1→T7→B7→B1, e não a ordem das peças
+  const ringByName = new Map(flow.readout.map((f) => [f.name, f.ring]));
+  let ringOk = ringByName.size === 14;
+  const ringSeen = [];
+  for (let i = 0; i < RING_ORDER.length; i++) {
+    ringSeen.push(ringByName.get(RING_ORDER[i]));
+    if (ringByName.get(RING_ORDER[i]) !== i) ringOk = false;
+  }
+  // as fases têm que ser 14 valores distintos e igualmente espaçados em 2π
+  const thetas = [...flow.readout].sort((a, b) => a.ring - b.ring).map((f) => f.theta);
+  let stepMax = 0;
+  let stepMin = Infinity;
+  for (let i = 1; i < thetas.length; i++) {
+    const d = thetas[i] - thetas[i - 1];
+    stepMax = Math.max(stepMax, d);
+    stepMin = Math.min(stepMin, d);
+  }
+  const stepIdeal = (2 * Math.PI) / 14;
+  const stepErr = Math.max(Math.abs(stepMax - stepIdeal), Math.abs(stepMin - stepIdeal));
+  add('flow · fase percorre o anel T1→T7→B7→B1',
+    ringOk && stepErr < 1e-12,
+    `ordem ${ringSeen.join(',')} · passo ${stepIdeal.toFixed(6)} rad ` +
+    `(erro ${stepErr.toExponential(2)})`);
+
+  // F3b. a CRISTA viaja no sentido do diagrama, uma peça por 1/14 de volta.
+  // É o teste que prende a direção: `sin(theta + w·t)` (a fórmula literal da
+  // seção 7) faria a onda andar ao contrário das setas da seção 2.
+  // Medido sem o segundo harmônico: a direção é propriedade da fundamental,
+  // e sem ele o argmax é exato.
+  const L = flowFull.loopDuration;
+  const omegaF = (2 * Math.PI) / L;
+  const crestAt = (theta, dir) => {
+    let best = 0;
+    let bestV = -Infinity;
+    const N = 20000;
+    for (let i = 0; i < N; i++) {
+      const time = (i / N) * L;
+      const v = flowWave(theta, time, omegaF, 0, 0, dir);
+      if (v > bestV) { bestV = v; best = time; }
+    }
+    return best;
+  };
+  const crests = thetas.map((th) => crestAt(th, 1));
+  const stepIdealT = L / 14;
+  let crestErr = 0;
+  for (let i = 0; i < crests.length; i++) {
+    const next = crests[(i + 1) % crests.length];
+    // diferença no círculo: a crista chega em k+1 um passo DEPOIS de k
+    let d = (next - crests[i] + L) % L;
+    crestErr = Math.max(crestErr, Math.abs(d - stepIdealT));
+  }
+  // e invertendo o toggle a onda tem que andar para o outro lado
+  const crestsRev = thetas.map((th) => crestAt(th, -1));
+  let revBackwards = true;
+  for (let i = 0; i < crestsRev.length; i++) {
+    const next = crestsRev[(i + 1) % crestsRev.length];
+    const d = (next - crestsRev[i] + L) % L;
+    if (Math.abs(d - (L - stepIdealT)) > 2 * (L / 20000)) revBackwards = false;
+  }
+  add('flow · a crista viaja no sentido do diagrama',
+    crestErr <= 2 * (L / 20000) && revBackwards,
+    `passo ${stepIdealT.toFixed(4)}s por peça (erro ${crestErr.toExponential(2)}s) · ` +
+    `flowReverse inverte: ${revBackwards ? 'sim' : 'NÃO'} · volta ${L}s / 14 peças`);
+
+  // F4. PERIODICIDADE, medida com o período real configurado (5,1 s).
+  //
+  // São dois números, e eles NÃO são o mesmo:
+  //  - UMA VOLTA da crista pelo anel = flowLoopDuration = 5,1 s. É o "loop" no
+  //    sentido visual, e é nele que a fundamental fecha.
+  //  - REPETIÇÃO EXATA do campo inteiro = 2 × 5,1 = 10,2 s. O segundo harmônico
+  //    é contra-rotante a METADE da velocidade: em t+5,1 s ele troca de sinal e
+  //    só volta ao mesmo valor em t+10,2 s.
+  //
+  // Medir os dois é o que impede alguém de mexer no HARMONIC_RATE e quebrar a
+  // periodicidade em silêncio: com 0.55, por exemplo, a repetição exata sairia
+  // de 10,2 s para 102 s e este teste falharia na hora.
+  const turn = flowFull.loopDuration;
+  const period = 2 * turn;
+  const tRef = 3.21;
+
+  const poseAtFlow = (time, weights) => {
+    org.apply(1, ORG);
+    flow.apply(org, time, 1, weights);
+    return poseOf();
+  };
+
+  const flowPoseA = poseAtFlow(tRef, flowFull);
+  const periodDelta = diff1d(flowPoseA, poseAtFlow(tRef + period, flowFull));
+  const turnDelta = diff1d(flowPoseA, poseAtFlow(tRef + turn, flowFull));
+  const halfDelta = diff1d(flowPoseA, poseAtFlow(tRef + turn / 2, flowFull));
+
+  // a fundamental sozinha (harmônico = 0) tem que fechar em exatamente 5,1 s
+  const flowNoH = resolveFlow({ ...BASELINE, flowHarmonic: 0 }, DESKTOP, {});
+  const fundA = poseAtFlow(tRef, flowNoH);
+  const fundTurnDelta = diff1d(fundA, poseAtFlow(tRef + turn, flowNoH));
+
+  add(`flow · periodicidade: volta ${turn}s · repetição exata ${period.toFixed(1)}s`,
+    fundTurnDelta < 1e-9 && periodDelta < 1e-9 && turnDelta > 1e-4 && halfDelta > 1e-4,
+    `fundamental fecha em ${turn}s: Δ ${fundTurnDelta.toExponential(2)} · ` +
+    `campo completo fecha em ${period.toFixed(1)}s: Δ ${periodDelta.toExponential(2)} · ` +
+    `em ${turn}s o harmônico troca de sinal: Δ ${turnDelta.toExponential(2)} (>0 esperado) · ` +
+    `meia volta: Δ ${halfDelta.toExponential(2)}`);
+
+  // F5. a onda é função PURA do tempo: 6000 frames não deixam resíduo na base
+  flow.reset();
+  org.apply(1, ORG);
+  const flowBaseBefore = poseOf();
+  let flowTime = 0;
+  for (let i = 0; i < 6000; i++) {
+    flowTime += frameDt;
+    org.apply(1, ORG);
+    flow.apply(org, flowTime, 1, flowFull);
+  }
+  org.apply(1, ORG);
+  const flowBaseAfter = diff1d(flowBaseBefore, poseOf());
+  const flowEndErr = org.endError(ORG).max;
+  add('flow · sem drift em 6000 frames',
+    flowBaseAfter === 0 && flowEndErr < TOL_END,
+    `base intacta Δ ${flowBaseAfter.toExponential(2)} · END ${flowEndErr.toExponential(3)} ` +
+    `(${(6000 * frameDt).toFixed(0)} s simulados)`);
+
+  // F6. amplitudes: rotação dentro do teto, centros praticamente parados
+  let maxFlowRotDeg = 0;
+  let maxFlowZ = 0;
+  let maxFlowXY = 0;
+  for (let i = 0; i <= 400; i++) {
+    const time = (i / 400) * period;
+    org.apply(1, ORG);
+    const ref = org.pieces.map((p) => ({
+      q: p.node.quaternion.clone(),
+      x: p.node.position.x,
+      y: p.node.position.y,
+      z: p.node.position.z,
+    }));
+    flow.apply(org, time, 1, flowFull);
+    for (let k = 0; k < org.pieces.length; k++) {
+      const node = org.pieces[k].node;
+      const dot = Math.min(1, Math.abs(node.quaternion.dot(ref[k].q)));
+      maxFlowRotDeg = Math.max(maxFlowRotDeg, 2 * Math.acos(dot) * (180 / Math.PI));
+      maxFlowZ = Math.max(maxFlowZ, Math.abs(node.position.z - ref[k].z));
+      maxFlowXY = Math.max(
+        maxFlowXY,
+        Math.hypot(node.position.x - ref[k].x, node.position.y - ref[k].y),
+      );
+    }
+  }
+  // Os sliders valem o máximo ANTES do mestre. Em t = 1 o peso de montagem é
+  // 1.0, então a amplitude efetiva é slider × flowAmount - e é contra ela que
+  // o teto tem que ser medido, senão o teste passaria a ser decorativo.
+  const amp = flowFull.amount;
+  const rotCeiling =
+    BASELINE.flowTilt * amp * (FLOW.W_PITCH + FLOW.W_YAW + FLOW.W_ROLL) + 1e-6;
+  const zCeiling = BASELINE.flowDepth * amp + 1e-9;
+  const xyCeiling = BASELINE.flowRadial * amp + 1e-9;
+  add('flow · amplitudes dentro dos limites acordados',
+    maxFlowRotDeg <= rotCeiling &&
+      maxFlowZ <= zCeiling &&
+      maxFlowXY <= xyCeiling,
+    `amount ${amp.toFixed(3)} · ` +
+    `rotação ${maxFlowRotDeg.toFixed(3)}° (teto composto ${rotCeiling.toFixed(3)}°) · ` +
+    `Z ${maxFlowZ.toFixed(5)} BU (teto ${zCeiling.toFixed(5)}) · ` +
+    `XY ${maxFlowXY.toFixed(5)} BU (teto ${xyCeiling.toFixed(5)} = ` +
+    `${((xyCeiling / SYMBOL.heightBU) * 100).toFixed(2)}% da altura do símbolo)`);
+
+  // F7. peso ao longo da montagem: os quatro pontos pedidos na especificação
+  const fw = [0, 0.5, 0.8, 1].map((t) => flowAssemblyWeight(t, BASELINE.flowAssemblyFloor));
+  add('flow · peso cresce conforme o símbolo se monta',
+    Math.abs(fw[0] - 0.2) < 1e-12 &&
+      fw[1] >= 0.5 - 1e-9 && fw[1] <= 0.6 + 1e-9 &&
+      fw[2] >= 0.85 - 1e-9 && fw[2] <= 0.9 + 1e-9 &&
+      Math.abs(fw[3] - 1) < 1e-12,
+    `t=0 ${(fw[0] * 100).toFixed(1)}% (alvo 20) · t=0.5 ${(fw[1] * 100).toFixed(1)}% (50-60) · ` +
+    `t=0.8 ${(fw[2] * 100).toFixed(1)}% (85-90) · t=1 ${(fw[3] * 100).toFixed(1)}% (100)`);
+
+  // F8. prefers-reduced-motion desliga o flow; touch mantém com menos amplitude
+  const flowReduced = resolveFlow(BASELINE, { canHover: true, prefersReduced: true }, {});
+  const flowCoarse = resolveFlow(BASELINE, { canHover: false, prefersReduced: false }, {});
+  flow.reset();
+  org.apply(0.5, ORG);
+  const reducedFlowRef = poseOf();
+  flow.apply(org, 77.7, 0.5, flowReduced);
+  const reducedFlowDelta = diff1d(reducedFlowRef, poseOf());
+  add('flow · reduced-motion desliga · touch reduz amplitude',
+    !flowReduced.on && reducedFlowDelta === 0 &&
+      flowCoarse.on &&
+      Math.abs(flowCoarse.amount - BASELINE.flowAmount * FLOW.COARSE_SCALE) < 1e-12,
+    `reduced: on=${flowReduced.on} Δ ${reducedFlowDelta.toExponential(2)} | ` +
+    `coarse: on=${flowCoarse.on} amount ${flowCoarse.amount.toFixed(3)} ` +
+    `(${(FLOW.COARSE_SCALE * 100).toFixed(0)}% do desktop)`);
+
+  // F9. o ponteiro perturba a onda sem pausá-la nem resetá-la: ao sair, a pose
+  // volta EXATAMENTE para Organic+Flow no tempo corrente, e a fase do flow
+  // continua sendo a função pura do tempo (não foi rebobinada).
+  flow.reset();
+  interaction.reset();
+  const tp = 12.5;
+  org.apply(1, ORG);
+  flow.apply(org, tp, 1, flowFull);
+  const flowOnlyPose = poseOf();
+
+  interaction.setPointer(0.25, -0.15, true);
+  let tpNow = tp;
+  for (let i = 0; i < 90; i++) {
+    tpNow += frameDt;
+    org.apply(1, ORG);
+    flow.apply(org, tpNow, 1, flowFull);
+    interaction.captureBase(org);
+    interaction.update(frameDt, wFull);
+    interaction.apply(org, camera, tpNow, 1, wFull);
+  }
+  const withPointer = poseOf();
+  org.apply(1, ORG);
+  flow.apply(org, tpNow, 1, flowFull);
+  const flowAtSameTime = poseOf();
+  const pointerMoved = diff1d(withPointer, flowAtSameTime);
+
+  // ponteiro sai: converge de volta para a onda, sem snap
+  interaction.setPointer(0.25, -0.15, false);
+  for (let i = 0; i < 400; i++) {
+    tpNow += frameDt;
+    org.apply(1, ORG);
+    flow.apply(org, tpNow, 1, flowFull);
+    interaction.captureBase(org);
+    interaction.update(frameDt, { ...wFull, idleOn: false });
+    interaction.apply(org, camera, tpNow, 1, { ...wFull, idleOn: false });
+  }
+  const afterExit = poseOf();
+  org.apply(1, ORG);
+  flow.apply(org, tpNow, 1, flowFull);
+  const backToWave = diff1d(afterExit, poseOf());
+
+  // e a fase do flow no tempo tp continua valendo o mesmo de antes
+  org.apply(1, ORG);
+  flow.apply(org, tp, 1, flowFull);
+  const phaseIntact = diff1d(flowOnlyPose, poseOf());
+
+  add('flow · ponteiro perturba a onda sem pausar nem resetar',
+    pointerMoved > 1e-5 && backToWave === 0 && phaseIntact === 0,
+    `perturbação ${pointerMoved.toExponential(2)} · volta à onda Δ ${backToWave.toExponential(2)} · ` +
+    `fase em t=${tp}s intacta Δ ${phaseIntact.toExponential(2)}`);
+
+  // F10. grading do fim: identidade EXATA com o flow off, e contraste em t→1
+  const gradeOff = flowGrade(1, flowOff);
+  const gradeStart = flowGrade(0, flowFull);
+  const gradeMid = flowGrade(0.6, flowFull);
+  const gradeEnd = flowGrade(1, flowFull);
+  add('flow · contrast boost só no grading e só no fim',
+    gradeOff.exposure === 1 && gradeOff.env === 1 &&
+      gradeStart.exposure === 1 && gradeStart.env === 1 &&
+      gradeMid.exposure === 1 && gradeMid.env === 1 &&
+      gradeEnd.exposure < 1 && gradeEnd.env > 1,
+    `off ×${gradeOff.exposure.toFixed(3)}/×${gradeOff.env.toFixed(3)} · ` +
+    `t=0 ×${gradeStart.exposure.toFixed(3)}/×${gradeStart.env.toFixed(3)} · ` +
+    `t=0.6 ×${gradeMid.exposure.toFixed(3)}/×${gradeMid.env.toFixed(3)} · ` +
+    `t=1 exposure ×${gradeEnd.exposure.toFixed(3)} env ×${gradeEnd.env.toFixed(3)}`);
+
+  // F11. continuidade: a onda é C² no tempo (segunda diferença converge em O(h²))
+  const d2At = (n) => {
+    const h = period / n;
+    let worst = 0;
+    for (let i = 1; i < n; i++) {
+      org.apply(1, ORG);
+      flow.apply(org, (i - 1) * h, 1, flowFull);
+      const a = poseOf();
+      org.apply(1, ORG);
+      flow.apply(org, i * h, 1, flowFull);
+      const bb = poseOf();
+      org.apply(1, ORG);
+      flow.apply(org, (i + 1) * h, 1, flowFull);
+      const c = poseOf();
+      for (let k = 0; k < a.length; k++) {
+        worst = Math.max(worst, Math.abs(a[k] - 2 * bb[k] + c[k]));
+      }
+    }
+    return worst;
+  };
+  const d2Coarse = d2At(120);
+  const d2Fine = d2At(240);
+  const d2Ratio = d2Fine > 0 ? d2Coarse / d2Fine : Infinity;
+  add('flow · sem vinco no tempo (Δ² converge em O(h²))',
+    d2Ratio > 3.5 && d2Ratio < 4.5,
+    `Δ² ${d2Coarse.toExponential(2)} → ${d2Fine.toExponential(2)} · ` +
+    `${d2Ratio.toFixed(2)}× ao dobrar N (C² ≈ 4×)`);
+
+  flow.reset();
+  interaction.reset();
+  org.apply(0, ORG);
+
   // 9. scroll real da pagina: 0 -> 1 -> 0, sem histerese
   const scrollMax = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   const ys = [];
@@ -741,6 +1062,7 @@ export function runSelfTest(ctx) {
   const active = params.mode === 'organic' ? organicAnimation : baselineAnimation;
   if (params.mode !== 'organic') organicAnimation.resetRoot();
   interaction.reset();
+  flow.reset();
   active.apply(0, params);
 
   const report = {

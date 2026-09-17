@@ -173,6 +173,44 @@ export const BASELINE = {
   pointerDamping: 6.0,
   showInfluence: false,
 
+  // --- CIRCULAR FLOW: onda de orientacao percorrendo o anel das 14 pecas ----
+  // Roda entre a coreografia e a microinteracao. Com flowEnabled = false o
+  // resultado volta a ser numericamente identico a Organic.
+  //
+  // VALORES FINAIS APROVADOS VISUALMENTE em 2026-09-17 (Fase 2). Tres deles
+  // ficaram fora das faixas sugeridas pela especificacao; a aprovacao visual
+  // prevalece e o desvio fica registrado aqui para nao virar acidente:
+  //   loopDuration 5.1 s  (a spec sugeria 6-9 s)
+  //   depth        0.016  (a spec sugeria 0.008-0.015)
+  //   radial       0.004  (a spec pedia comecar em 0)
+  // `amount` = 1.240 multiplica tilt/depth/radial, entao as amplitudes
+  // EFETIVAS em t = 1 sao 1.24x os numeros abaixo.
+  flowEnabled: true,
+  /** mestre do flow: multiplica tilt, depth e radial */
+  flowAmount: 1.24,
+  /** duracao de UMA volta completa da crista pelo anel, em segundos */
+  flowLoopDuration: 5.1,
+  /** rotacao MAXIMA por lamina, em graus (canal de pitch; yaw e roll sao fracoes) */
+  flowTilt: 2.3,
+  /** deslocamento MAXIMO em profundidade, em BU */
+  flowDepth: 0.016,
+  /** deslocamento MAXIMO radial, em BU */
+  flowRadial: 0.004,
+  /** peso do segundo harmonico, so para quebrar a perfeicao mecanica */
+  flowHarmonic: 0.15,
+  /** boost de contraste no fim da montagem; mexe so no grading, nunca no material */
+  flowContrast: 1.0,
+  /** peso do flow em t = 0; cresce ate 1.0 em t = 1 */
+  flowAssemblyFloor: 0.2,
+  /**
+   * false = a onda anda no sentido do diagrama da especificacao
+   * (T1→…→T7→B7→…→B1→T1). true inverte. Existe porque a secao 2 (setas) e a
+   * secao 7 (formula `sin(theta + t)`) discordam entre si: o default segue o
+   * diagrama, que e a parte explicita, e o toggle resolve no olho.
+   */
+  flowReverse: false,
+  showFlowPhase: false,
+
   // camera
   fovDeg: CAMERA.fovDeg,
   autoFit: true,

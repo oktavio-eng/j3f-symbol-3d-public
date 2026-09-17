@@ -1,7 +1,12 @@
-# Protótipo Three.js — Fase 1
+# Protótipo Three.js — Fases 1 e 2
 
 Protótipo standalone que carrega `export/j3f-symbol.glb` + `export/j3f-symbol-states.json`
 e amarra a convergência das 14 lâminas ao scroll.
+
+- **Fase 1** — coreografia (baseline + Organic), enquadramento, environment,
+  microinteração (idle + pointer). Concluída e commitada.
+- **Fase 2** — **Circular Flow**: a onda de orientação que percorre o anel das
+  14 lâminas. Concluída, aprovada visualmente em 2026-09-17.
 
 Zero-build: nenhum `node_modules`, nenhum bundler. O `three` r186 está vendorizado
 em `web/vendor/` e resolvido por import map.
@@ -33,6 +38,8 @@ lê os assets por caminho relativo (`../export/…`), sem cópia.
 | `…/web/index.html?mode=organic` | força a variante experimental |
 | `…/web/index.html?t=0.25` | congela o progresso em 25% (aceita `?debug` junto) |
 | `…/web/index.html?debug&showInfluence` | overlay do campo de influência do ponteiro |
+| `…/web/index.html?debug&showFlowPhase` | overlay da onda do Circular Flow (14 dots + tira na ordem do anel) |
+| `…/web/index.html?flow=off` | desliga o Circular Flow sem abrir o painel (A/B rápido) |
 | `…/web/index.html?selftest` | roda a bateria de validação e escreve o relatório em `#j3f-selftest` |
 | `…/web/index.html?capture` | preserva o drawing buffer e publica o PNG do canvas no DOM (`&captureAt=ms` atrasa a captura) |
 
@@ -48,6 +55,7 @@ web/
 │   ├── j3f-config.js          baseline (vem do Blender), luzes, world, câmera
 │   ├── j3f-animation.js       coreografia BASELINE — START→END (puro, sem DOM)
 │   ├── j3f-organic.js         coreografia ORGANIC — START→FLOW→PRE-ASSEMBLY→END
+│   ├── j3f-flow.js            CIRCULAR FLOW — onda de orientação pelo anel (Fase 2)
 │   ├── j3f-interaction.js     camada aditiva — idle + pointer sobre a base pose
 │   ├── j3f-environment.js     estúdio autoral + PMREM
 │   ├── j3f-framing.js         enquadramento responsivo
@@ -483,6 +491,194 @@ Varridos 21 × 21 posições de ponteiro × 5 valores de `t`.
 
 ---
 
+## Circular Flow (Fase 2)
+
+O loop do símbolo **não** vem de peças orbitando. Vem de uma **onda de
+orientação** percorrendo as 14 lâminas ao longo de um anel fechado. Os centros
+ficam praticamente parados; o que viaja é tilt, pitch/yaw, uma profundidade
+mínima e — metade do efeito — a leitura de luz.
+
+`web/src/j3f-flow.js`. Como os outros módulos de movimento, não lê `window`,
+`matchMedia`, eventos nem o relógio: quem injeta tempo, progresso e capacidades
+é o `main`. É o que permite ao `?selftest` medir periodicidade e amplitude de
+forma determinista.
+
+### Ordem na cadeia
+
+```
+Organic base pose  →  CIRCULAR FLOW  →  Ambient Micro Float  →  Pointer  →  render
+```
+
+Está literal em `render()` (`web/src/main.js`). O ponto que sustenta a seção 10
+da especificação: o flow roda **antes** de `interaction.captureBase()`, então a
+base que o idle e o ponteiro enxergam já é *Organic + Flow*. O ponteiro perturba
+a onda **sem nunca pausá-la nem resetá-la**, porque ele é aditivo sobre ela; ao
+sair, o damping devolve a peça exatamente para a onda no tempo corrente.
+
+Não acumula nada: `J3FAnimation.apply()` reescreve o TRS inteiro a cada frame
+antes desta camada, então somar offsets in place é seguro — a mesma filosofia
+que sustenta a ausência de drift no idle.
+
+### O anel
+
+```
+T1 → T2 → T3 → T4 → T5 → T6 → T7
+                                 ↓
+B1 ← B2 ← B3 ← B4 ← B5 ← B6 ← B7
+ ↓
+T1
+```
+
+O índice no anel sai só da topologia, nunca de uma lista de nomes:
+
+```
+top:     coluna 1..7  →  ring 0..6
+bottom:  coluna 7..1  →  ring 7..13
+theta_k = 2π · ring / 14
+```
+
+`RING_ORDER` existe no módulo apenas como referência legível e como oráculo do
+`?selftest`, que confere as duas derivações uma contra a outra.
+
+### A onda
+
+```
+wave(θ, t, φ) = [ sin(θ − dir·ω·t + φ) + h · sin(2θ + dir·½·ω·t + φ) ] / (1 + h)
+```
+
+Dividida por `(1 + h)` para que `|wave| ≤ 1` sempre — é o que faz cada slider do
+painel valer **exatamente** a amplitude máxima, e não um número aproximado que
+cresce junto com o harmônico.
+
+**Sobre o sinal.** A especificação discorda de si mesma: a seção 2 desenha a
+ordem com setas (`T1→…→T7→B7→…→B1→T1`), mas a fórmula "conceitual" da seção 7
+escreve `sin(theta + t)`, cuja crista fica em `θ = π/2 − ω·t` — ou seja, anda no
+sentido **contrário** ao das setas. Vale o diagrama, que é a parte explícita. O
+toggle `flowReverse` inverte, e o `?selftest` prende a direção medindo o tempo em
+que a crista chega a cada posição do anel.
+
+**Sobre o segundo harmônico.** A especificação sugeria `t*0.55`. Aqui o rate é
+**½**, e é deliberado: com `0.55 = 11/20` o campo só se repetiria depois de 20
+voltas (102 s na configuração final), e a seção 2 pede fase "perfeitamente
+periódica". Com ½ a repetição exata é 2 voltas. O harmônico continua cumprindo
+seu único papel, que é quebrar a perfeição mecânica — e continua contra-rotante.
+
+### Por que pitch e yaw a um quarto de ciclo
+
+Pitch e yaw defasados de `π/2` fazem a normal da lâmina **precessar num cone**. É
+isso que lê como *torção*, e não como uma aba batendo num eixo só. O roll entra
+com peso pequeno (0,22) de propósito: girar no plano da tela muda a silhueta da
+marca, enquanto pitch/yaw mudam apenas o ângulo de reflexão — que é o efeito
+desejado.
+
+A rotação é **pós-multiplicada** (`node.quaternion.multiply(offset)`), ou seja,
+em torno dos eixos **locais** da lâmina, e não de um eixo global do símbolo.
+Mesma convenção do idle e do ponteiro.
+
+### Luz faz metade do trabalho
+
+Nada disso tenta resolver a sensação geometricamente. Quando a lâmina inclina ela
+sai do ângulo de reflexão, escurece, quase some, e depois captura de novo a
+strip. Medido: com o flow ligado e desligado **no mesmo instante**, 3,86% dos
+pixels mudam, com delta máximo **237/255**. A geometria só entrega o ângulo; o
+material grafite + bevel + environment fazem o resto.
+
+### Contraste no fim da montagem
+
+A especificação proíbe mexer no material. O boost mexe **só no grading**, como
+multiplicador sobre os valores do painel, nunca escrito de volta neles:
+
+| `t` | exposure | environmentIntensity |
+|---|---|---|
+| ≤ 0,60 | ×1,000 | ×1,000 |
+| 0,60 → 0,95 | rampa `smootherstep` | rampa `smootherstep` |
+| ≥ 0,95 | **×0,900** | **×1,250** |
+
+Exposure desce (afunda os darks) e o environment sobe (empurra as fontes
+especulares): darks mais profundos e highlights mais dramáticos, sem tocar em
+metallic nem roughness. Com o flow desligado o grading é identidade **exata**.
+
+### Peso ao longo da montagem
+
+A Organic domina a viagem; o Circular Flow domina a sensação de vida no estado
+final. Os quatro pontos pedidos eram 20% / 50–60% / 85–90% / 100%.
+`smootherstep` puro passa de 95% em `t = 0.8` — fora da faixa. Por isso a curva é
+a mistura que encosta nos quatro alvos, continuando polinomial (sem vinco) em
+todo o intervalo:
+
+```
+s(t)  = 0.4 · smootherstep(t) + 0.6 · t
+peso  = floor + (1 − floor) · s(t)          floor = 0.20
+```
+
+| `t` | 0 | 0,5 | 0,8 | 1 |
+|---|---|---|---|---|
+| peso | **20,0%** | **60,0%** | **88,5%** | **100,0%** |
+
+### Parâmetros finais aprovados
+
+Aprovados visualmente em **2026-09-17**. Vivem em `BASELINE`, em
+`web/src/j3f-config.js`; o `reset baseline` do painel volta exatamente para cá.
+
+| Controle | Valor | Faixa sugerida pela spec |
+|---|---|---|
+| `flowEnabled` | `true` | — |
+| `flowAmount` (mestre) | **1,240** | — |
+| `flowLoopDuration` | **5,100 s** | 6–9 s ⚠️ |
+| `flowTilt` | **2,300°** | ±1–3° ✅ |
+| `flowDepth` | **0,016 BU** | 0,008–0,015 ⚠️ |
+| `flowRadial` | **0,004 BU** | começar em 0 ⚠️ |
+| `flowHarmonic` | **0,150** | 0,12–0,18 ✅ |
+| `flowContrast` | **1,000** | — |
+| `flowAssemblyFloor` | **0,200** | 20% em `t=0` ✅ |
+| `flowReverse` | `false` (sentido do diagrama) | — |
+
+⚠️ Três valores ficaram fora das faixas sugeridas. **A aprovação visual
+prevalece** — o registro existe para que o desvio seja uma decisão consciente e
+não um acidente de slider.
+
+`flowAmount` multiplica tilt, depth e radial, então as amplitudes **efetivas**
+em `t = 1` são 1,24× os números da tabela:
+
+| | slider | efetivo em `t = 1` |
+|---|---|---|
+| tilt (pitch) | 2,300° | **2,852°** |
+| profundidade | 0,016 BU | **0,01984 BU** |
+| radial | 0,004 BU | **0,00496 BU** = 0,25% da altura do símbolo |
+| rotação composta medida | — | **2,890°** |
+
+### Os dois tempos, que não são o mesmo
+
+| | duração | o que é |
+|---|---|---|
+| **Volta** | **5,1 s** | a crista completa o anel: 14 peças × 0,3643 s. É o "loop" no sentido visual, e é nele que a fundamental fecha. |
+| **Repetição exata** | **10,2 s** | o campo inteiro volta ao mesmo estado. O segundo harmônico é contra-rotante a **metade** da velocidade: em `t + 5,1 s` ele troca de sinal e só volta ao mesmo valor em `t + 10,2 s`. |
+
+O `?selftest` mede os dois. É o que impede alguém de mexer no `HARMONIC_RATE` e
+quebrar a periodicidade em silêncio.
+
+### Desktop / mobile / reduced motion
+
+| Contexto | Circular Flow |
+|---|---|
+| desktop | amplitude cheia (`amount` 1,240) |
+| touch / coarse pointer | **mantido**, a 60% (`amount` 0,744) |
+| `prefers-reduced-motion` | **desligado**, Δ **0,00e+00** |
+
+### O que o flow NÃO toca
+
+GLB, JSON, Blender, trajetória Organic, START, END, stagger e o easing da
+Organic continuam intocados. Com `flowEnabled = false`, `idle = off` e
+`pointer = off`, o resultado é **numericamente idêntico** à Organic — Δ
+**0,00e+00**, verificado no `?selftest`.
+
+O invariante "`t = 1` = END literal" continua valendo para a **base pose**. Como
+o idle, o flow mexe o objeto em `t = 1` — é o objetivo da camada. O END oficial
+segue sendo o que `animation.apply(1)` escreve, e é isso que os testes de END
+medem.
+
+---
+
 ## Painel `?debug`
 
 | Grupo | Controles |
@@ -493,6 +689,7 @@ Varridos 21 × 21 posições de ponteiro × 5 valores de `t`.
 | organic · coreografia | organicStagger · rotationMultiplier · scaleVariationMultiplier · curvature · arco lateral · casca de profundidade · flowStrength |
 | organic · sistema | rootMotion · cameraDolly |
 | baseline · coreografia | stagger max · rotation × · position × (X/Y) · depth × (Z) · scale × |
+| **circular flow** | **circular flow enabled** · amount (mestre) · loop duration · tilt amount · depth amount · radial amount · secondary harmonic · contrast boost at END · assembly weight · inverter sentido da onda · show flow phase · peso efetivo · tira de 14 células na ordem do anel |
 | **ambient motion** | **Interaction Mode (Off / Idle / Idle + Pointer)** · idle enabled · idle amount · idle speed · piece float · piece rotation · root float · assembly weight |
 | **pointer interaction** | pointer enabled · influence radius · position strength · depth strength · rotation strength · root tilt · pointer damping · show influence debug · estado do ponteiro |
 | câmera | auto-fit · FOV · distância · símbolo/altura |
@@ -513,7 +710,8 @@ exatamente para `BASELINE` em `j3f-config.js`.
 Roda no navegador de verdade e escreve o relatório em `#j3f-selftest`,
 `window.__J3F_SELFTEST` e no `document.title` (`SELFTEST:OK` / `SELFTEST:FAIL`).
 
-Resultado — **35/35 PASS** em 1440×900, 1280×720 e 390×844, nos dois modos.
+Resultado — **47/47 PASS** em 1440×900, nos dois modos. Os 35 checks da Fase 1
+continuam com os **mesmos números**; os 12 da Fase 2 são novos.
 
 **Baseline** (inalterado):
 
@@ -557,6 +755,24 @@ Resultado — **35/35 PASS** em 1440×900, 1280×720 e 390×844, nos dois modos.
 | base END com idle rodando (20 s) | TRS **6,097e-07** · root **0,00e+00** |
 | peso do idle cresce com a montagem | 35% → 56% → 89% → 100% |
 
+**Circular Flow** (Fase 2, com os parâmetros finais aprovados):
+
+| Verificação | Resultado |
+|---|---|
+| Circular Flow OFF = Organic exata | Δ **0,00e+00** |
+| **flow + idle + pointer OFF = Organic exata** | Δ **0,00e+00** (as três camadas desligadas) |
+| fase percorre o anel T1→T7→B7→B1 | ordem `0..13` · passo **0,448799 rad** (erro **8,88e-16**) |
+| **a crista viaja no sentido do diagrama** | **0,3643 s** por peça (erro **1,46e-04 s**) · `flowReverse` inverte · volta 5,1 s / 14 peças |
+| **periodicidade: volta 5,1 s** | fundamental fecha em 5,1 s: Δ **3,12e-17** |
+| **periodicidade: repetição exata 10,2 s** | campo completo: Δ **1,99e-17** · em 5,1 s o harmônico troca de sinal: Δ **6,50e-03** (>0 esperado) |
+| **sem drift em 6000 frames** (100 s) | base intacta Δ **0,00e+00** · END **6,097e-07** |
+| amplitudes dentro dos tetos | `amount` 1,240 · rotação **2,890°** (teto composto 5,904°) · Z **0,01984 BU** · XY **0,00496 BU** = **0,25%** da altura do símbolo |
+| peso cresce com a montagem | **20,0% → 60,0% → 88,5% → 100,0%** (alvos 20 / 50-60 / 85-90 / 100) |
+| `prefers-reduced-motion` desliga o flow | Δ **0,00e+00** · touch mantém a **60%** (`amount` 0,744) |
+| **ponteiro perturba a onda sem pausar nem resetar** | perturbação **2,04e-02** · volta à onda Δ **0,00e+00** · fase intacta Δ **0,00e+00** |
+| contrast boost só no grading e só no fim | off/`t=0`/`t=0,6` ×1,000 · `t=1` exposure **×0,900** env **×1,250** |
+| **sem vinco no tempo (Δ² em O(h²))** | **4,00×** ao dobrar N (C² ≈ 4×) |
+
 **Comuns**: scroll real 0→1→0 com histerese **0,00e+00**, 14.504 triângulos/frame,
 `gl.getError() = 0`, console **sem erros e sem warnings**.
 
@@ -571,6 +787,21 @@ Com o scroll congelado em `t = 1` (`?capture&t=1&captureAt=…`), três capturas
 framebuffer em 0,6 s, 5 s e 11 s têm MD5 diferentes — o objeto se mexe de verdade
 pelo loop de render real. Entre a primeira e a terceira, apenas **0,18% dos
 pixels** mudam mais que 8/255: vivo, não screensaver.
+
+### Prova de que o Circular Flow está na tela
+
+Mesma técnica, comparando `?capture&t=1` com `?capture&flow=off&t=1` **no mesmo
+instante**: **3,86% dos pixels** mudam mais que 8/255, com delta máximo
+**237/255**. É a assinatura do comportamento pedido na seção 4 da especificação —
+a lâmina sai do ângulo de reflexão, escurece, quase some, e depois recaptura a
+strip.
+
+**Ressalva honesta sobre o método.** Esse diff **não** serve para medir o
+*timing* da onda: sob `--virtual-time-budget` o relógio do headless quase não
+avança entre capturas (entre 2500 ms e 4400 ms virtuais, dois frames com o flow
+ligado diferem em apenas 0,01% dos pixels). Quem prova o percurso e a
+periodicidade são os checks determinísticos do `?selftest`, que injetam o tempo
+diretamente — não o diff de pixels.
 
 ### Como rodar a bateria fora do navegador
 
@@ -590,9 +821,14 @@ extraído do `--dump-dom` e decodificado.
 
 ---
 
-## O que ficou de fora desta fase
+## O que ficou de fora destas fases
 
 - pós-processamento (e portanto o DOF f/5.6 dos previews);
 - integração com Framer;
-- deploy, commit e push;
-- ajuste fino do estágio ~25% — o painel existe justamente para essa avaliação.
+- deploy;
+- ajuste fino do estágio ~25% — o painel existe justamente para essa avaliação;
+- acoplamento explícito ponteiro → amplitude do flow. A seção 10 da
+  especificação dizia que a peça próxima ao cursor "**pode**" aumentar
+  tilt/depth; hoje isso já acontece pela camada de ponteiro, que é aditiva sobre
+  a onda. Um ganho local dedicado exigiria o flow conhecer o campo de influência,
+  o que inverteria a ordem das camadas — ficou de fora por escolha.

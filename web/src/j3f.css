@@ -143,6 +143,25 @@ h2 {
   background: var(--j3f-cyan);
 }
 
+/* --- overlay da fase do circular flow (?debug + show flow phase) ---------- */
+
+.j3f-flowphase {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+}
+
+.j3f-flowphase__dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  background: var(--j3f-cyan);
+  box-shadow: 0 0 10px rgba(0, 177, 204, 0.55);
+  will-change: transform;
+}
+
 /* --- painel de debug (?debug) -------------------------------------------- */
 
 .j3f-debug {
@@ -300,6 +319,21 @@ h2 {
   color: #5c6675;
   font-size: 10px;
   line-height: 1.35;
+}
+
+/* tira da onda: 14 células na ordem do anel T1→T7→B7→B1 */
+.j3f-debug__flowstrip {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.j3f-debug__flowcell {
+  flex: 1;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--j3f-cyan);
+  opacity: 0.1;
 }
 
 .j3f-debug__reset {

@@ -36,6 +36,7 @@ import { J3FOrganicAnimation, organicCameraFactor } from './j3f-organic.js';
 import { createEnvironment, createGradientDome } from './j3f-environment.js';
 import { collectFitPoints, fitDistance } from './j3f-framing.js';
 import { J3FInteraction, resolveWeights } from './j3f-interaction.js';
+import { J3FCircularFlow, flowGrade, resolveFlow } from './j3f-flow.js';
 
 const url = new URL(window.location.href);
 const DEBUG = url.searchParams.has('debug');
@@ -71,6 +72,11 @@ if (forcedMode === 'baseline' || forcedMode === 'organic') params.mode = forcedM
 
 // ?showInfluence liga o overlay do campo do ponteiro (precisa de ?debug).
 if (url.searchParams.has('showInfluence')) params.showInfluence = true;
+
+// ?showFlowPhase liga o overlay da onda do Circular Flow (precisa de ?debug).
+if (url.searchParams.has('showFlowPhase')) params.showFlowPhase = true;
+// ?flow=off desliga o Circular Flow sem abrir o painel (A/B rapido).
+if (url.searchParams.get('flow') === 'off') params.flowEnabled = false;
 
 // ?t=0.25 congela o progresso num ponto do timeline, para avaliar um estagio
 // sem ter que acertar o scroll na mao.
@@ -114,6 +120,8 @@ let fitPoints = [];
 
 /** as duas coreografias vivem lado a lado; o painel ?debug alterna entre elas */
 const interaction = new J3FInteraction();
+/** Circular Flow: roda entre a coreografia e a microinteracao */
+const flow = new J3FCircularFlow();
 let baselineAnimation = null;
 let organicAnimation = null;
 let animation = null;
@@ -217,14 +225,19 @@ function readScroll() {
 
 // --- microinteração ---------------------------------------------------------
 
-/** Objeto reutilizado: resolver os pesos não pode alocar por frame. */
+/** Objetos reutilizados: resolver os pesos não pode alocar por frame. */
 const ip = {};
+const fp = {};
 
 /** Capacidades reais deste dispositivo, injetadas no resolvedor. */
 const capabilities = { canHover, prefersReduced };
 
 function resolveInteraction() {
   return resolveWeights(params, capabilities, ip);
+}
+
+function resolveFlowWeights() {
+  return resolveFlow(params, capabilities, fp);
 }
 
 /**
@@ -282,10 +295,12 @@ function tick(timestamp) {
     smoothProgress = rawProgress;
   }
 
-  // com idle permanente o loop precisa desenhar todo frame; sem ele, volta a
-  // valer o desenho sob demanda
+  // com idle ou Circular Flow permanentes o loop precisa desenhar todo frame;
+  // sem eles, volta a valer o desenho sob demanda
   const animated =
-    interactionWeights.idleOn || interaction.damped.activation > 0;
+    interactionWeights.idleOn ||
+    interaction.damped.activation > 0 ||
+    resolveFlowWeights().on;
 
   if (dirty || animated || Math.abs(smoothProgress - lastAppliedProgress) > 1e-6) {
     render();
@@ -339,8 +354,18 @@ function publishCapture() {
 
 function render() {
   const weights = resolveInteraction();
+  const flowWeights = resolveFlowWeights();
   if (animation) {
     const stats = animation.apply(smoothProgress, params);
+
+    // CIRCULAR FLOW: a onda de orientação entra ANTES da microinteração, sobre
+    // a pose que a coreografia acabou de escrever. A ordem da especificação é
+    //   Organic → Circular Flow → Ambient Micro Float → Pointer → render
+    // e é ela que faz o ponteiro perturbar a onda sem nunca pausá-la nem
+    // resetá-la: o que o idle e o ponteiro capturam como base já contém o flow.
+    const flowWeight = flowWeights.on
+      ? flow.apply(animation, elapsed, smoothProgress, flowWeights)
+      : 0;
 
     // BASE POSE: a pose da coreografia é recapturada a cada frame e é dela que
     // os offsets são derivados. Nada é aplicado sobre o resultado anterior.
@@ -355,11 +380,26 @@ function render() {
         pTail: stats.pTail,
         pMean: stats.pMean,
         phase: stats.phase ?? 'baseline',
+        flowWeight: flowWeights.on ? flowWeight : 0,
       });
     }
   }
+
+  // Grading do fim da montagem: darks mais profundos e highlights mais
+  // dramáticos quando t → 1. Multiplicadores sobre os valores do painel, nunca
+  // escritos de volta neles — e exatamente 1.0 com o flow desligado.
+  const grade = flowGrade(smoothProgress, flowWeights);
+  renderer.toneMappingExposure = params.exposure * grade.exposure;
+  scene.environmentIntensity = params.envIntensity * grade.env;
+
   if (params.mode === 'organic') placeCamera();
   if (panel && params.showInfluence) panel.updateInfluence(interaction);
+  if (panel && params.showFlowPhase && animation && symbolRoot) {
+    symbolRoot.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    flow.project(animation, camera);
+    panel.updateFlowPhase(flow);
+  }
   renderer.render(scene, camera);
 }
 
@@ -394,6 +434,9 @@ async function load() {
   }
   animation = params.mode === 'organic' ? organicAnimation : baselineAnimation;
   interaction.bind(organicAnimation, symbolRoot);
+  // as duas coreografias constroem `pieces` a partir do MESMO `states.pieces`,
+  // na mesma ordem: a fase do anel vale para as duas
+  flow.bind(organicAnimation);
 
   setStatus('montando estúdio…');
   environment = createEnvironment(renderer, {
@@ -456,6 +499,9 @@ function onParamChange(key) {
   if (key === 'showInfluence' || key === '*') {
     if (panel) panel.setInfluenceVisible(params.showInfluence);
   }
+  if (key === 'showFlowPhase' || key === '*') {
+    if (panel) panel.setFlowPhaseVisible(params.showFlowPhase);
+  }
   if (key === 'mode' || key === '*' || MOTION_KEYS.includes(key)) recomputeFitPoints();
   if (['fovDeg', 'distance', 'autoFit', 'mode', '*'].includes(key) || MOTION_KEYS.includes(key)) {
     const info = applyCamera();
@@ -502,6 +548,7 @@ load()
       const { J3FDebugPanel } = await import('./j3f-debug.js');
       panel = new J3FDebugPanel(params, onParamChange);
       panel.setInfluenceVisible(params.showInfluence);
+      panel.setFlowPhaseVisible(params.showFlowPhase);
       panel.update({
         nodes: `${result.binding.count}/${result.binding.total}`,
         endError: result.endError.max.toExponential(2),
@@ -540,7 +587,7 @@ load()
 
     window.__J3F = {
       params, scene, camera, renderer, result, readScroll, resize,
-      baselineAnimation, organicAnimation, interaction,
+      baselineAnimation, organicAnimation, interaction, flow,
       capabilities,
       get animation() { return animation; },
     };
@@ -548,7 +595,7 @@ load()
     if (SELFTEST) {
       const { runSelfTest } = await import('./j3f-selftest.js');
       runSelfTest({
-        animation, baselineAnimation, organicAnimation, interaction,
+        animation, baselineAnimation, organicAnimation, interaction, flow,
         renderer, scene, camera, params, result,
         errors, warnings, symbolRoot, resize, readScroll,
         capabilities,

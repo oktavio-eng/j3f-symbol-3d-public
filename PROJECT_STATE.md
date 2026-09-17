@@ -3,10 +3,11 @@
 **Handoff entre sessões. Leia este arquivo primeiro.**
 
 Última atualização: 2026-09-17
-Fase atual: **Fase 2 — Circular Flow (a iniciar)**
+Fase atual: **Fase 2 — Circular Flow CONCLUÍDA, aprovada visualmente e commitada**
 Fase anterior: **Fase 1 — protótipo Three.js CONCLUÍDA e COMMITADA**
 (`feat/threejs-prototype`, commit `23133e0`)
 Checkpoint da Fase Blender: commit `b82b453`, preservado em `main`
+Próximo passo: **Fase 3 — não iniciada, sem escopo definido**
 
 ---
 
@@ -86,7 +87,9 @@ função de interpolação.
 | `web/` | protótipo Three.js standalone (Fase 1) |
 | `web/src/j3f-animation.js` | coreografia **baseline** — não alterar |
 | `web/src/j3f-organic.js` | coreografia **organic** — aprovada, não alterar |
+| `web/src/j3f-flow.js` | **Circular Flow** (Fase 2) — onda de orientação pelo anel, aprovada |
 | `web/src/j3f-interaction.js` | camada aditiva idle + pointer — é aqui que se experimenta |
+| `web/src/j3f-config.js` | `BASELINE` — **todos os parâmetros finais aprovados vivem aqui** |
 
 ---
 
@@ -216,8 +219,8 @@ A base pose é recapturada dos nós a cada frame e os offsets são derivados de 
 a partir dela — nada é acumulado, logo não há drift. Com idle e pointer em zero o
 resultado é **numericamente igual** à Organic.
 
-Bateria `?selftest`: **35/35 PASS** em 1440×900, 1280×720 e 390×844, nos dois
-modos. Destaques da coreografia:
+Bateria `?selftest`: **47/47 PASS** (35 da Fase 1 + 12 da Fase 2), em 1440×900,
+nos dois modos. Destaques da coreografia:
 
 | | baseline | organic |
 |---|---|---|
@@ -249,10 +252,109 @@ mostra apenas `web/` como novo, e o MD5 do `j3f-symbol-prototype.blend` continua
 
 ---
 
-## 8. Pendências
+## 8. Fase 2 — Circular Flow (concluída, aprovada e commitada)
 
-- [ ] **Fase 2 — Circular Flow** (próximo passo; especificação em
-      `J3F_Prompt_02_Circular_Flow_Refinado.md`)
+O loop do símbolo **não** vem de peças orbitando. Vem de uma **onda de
+orientação** percorrendo as 14 lâminas ao longo do anel fechado
+`T1→…→T7→B7→…→B1→T1`. Os centros ficam praticamente parados; o que viaja é tilt,
+pitch/yaw, uma profundidade mínima e — metade do efeito — a leitura de luz.
+
+Módulo: `web/src/j3f-flow.js`. Documentação técnica completa em
+**`docs/THREEJS_PROTOTYPE.md`**, seção *Circular Flow (Fase 2)*.
+
+A cadeia completa, literal em `render()`:
+
+```
+scroll → Organic base pose → CIRCULAR FLOW → ambient idle → pointer → render
+```
+
+O flow roda **antes** de `interaction.captureBase()`. É isso que faz o ponteiro
+perturbar a onda sem nunca pausá-la nem resetá-la: a base que o idle e o ponteiro
+capturam já contém o flow.
+
+### Parâmetros finais aprovados (2026-09-17)
+
+Vivem em `BASELINE`, em `web/src/j3f-config.js`. O `reset baseline` do painel
+volta exatamente para cá.
+
+| Controle | Valor | Faixa sugerida pela spec |
+|---|---|---|
+| `flowEnabled` | `true` | — |
+| `flowAmount` (mestre) | **1,240** | — |
+| `flowLoopDuration` | **5,100 s** | 6–9 s ⚠️ |
+| `flowTilt` | **2,300°** | ±1–3° ✅ |
+| `flowDepth` | **0,016 BU** | 0,008–0,015 ⚠️ |
+| `flowRadial` | **0,004 BU** | começar em 0 ⚠️ |
+| `flowHarmonic` | **0,150** | 0,12–0,18 ✅ |
+| `flowContrast` | **1,000** | — |
+| `flowAssemblyFloor` | **0,200** | 20% em `t=0` ✅ |
+| `flowReverse` | `false` (sentido do diagrama) | — |
+
+⚠️ Três valores ficaram **fora** das faixas sugeridas pela especificação. A
+aprovação visual prevalece; o registro existe para que o desvio seja uma decisão
+consciente e não um acidente de slider.
+
+`flowAmount` multiplica tilt, depth e radial — as amplitudes **efetivas** em
+`t = 1` são 1,24× a tabela: tilt **2,852°**, profundidade **0,01984 BU**, radial
+**0,00496 BU** (= 0,25% da altura do símbolo). Rotação composta medida: **2,890°**.
+
+### Os dois tempos, que não são o mesmo
+
+| | duração | o que é |
+|---|---|---|
+| **Volta** | **5,1 s** | a crista completa o anel: 14 × 0,3643 s. É o loop no sentido visual, e nele a fundamental fecha. |
+| **Repetição exata** | **10,2 s** | o campo inteiro volta ao mesmo estado. O 2º harmônico é contra-rotante a **metade** da velocidade: em `t+5,1 s` troca de sinal. |
+
+O `?selftest` mede os dois — é o que impede quebrar a periodicidade em silêncio.
+
+### Destaques da validação
+
+| | |
+|---|---|
+| Flow OFF = Organic | Δ **0,00e+00** |
+| Flow + idle + pointer OFF = Organic | Δ **0,00e+00** |
+| Periodicidade da fundamental (5,1 s) | Δ **3,12e-17** |
+| Repetição exata do campo (10,2 s) | Δ **1,99e-17** |
+| Crista viaja no sentido do diagrama | **0,3643 s**/peça, erro **1,46e-04 s** |
+| Drift em 6000 frames (100 s) | base **0,00e+00** · END **6,097e-07** |
+| Ponteiro perturba sem pausar nem resetar | volta à onda Δ **0,00e+00** · fase intacta Δ **0,00e+00** |
+| Peso pela montagem | **20,0% → 60,0% → 88,5% → 100,0%** |
+| `prefers-reduced-motion` | flow **desligado**, Δ **0,00e+00** |
+| Touch / coarse | flow **mantido a 60%** (`amount` 0,744) |
+| Contrast boost em `t=1` | exposure **×0,900** · env **×1,250** — só grading, material intocado |
+| Δ² no tempo | **4,00×** ao dobrar N (C²) |
+| Flow ON vs OFF no mesmo instante | **3,86%** dos pixels, delta máx **237/255** |
+
+### Divergência encontrada na própria especificação
+
+A seção 2 desenha a ordem com setas (`T1→…→T7→B7→…→B1→T1`), mas a fórmula
+"conceitual" da seção 7 escreve `sin(theta + t)`, cuja crista anda no sentido
+**contrário** ao das setas. **Vale o diagrama**, que é a parte explícita. O
+toggle `flowReverse` no painel inverte, e um selftest prende a direção.
+
+Também: a spec sugeria o 2º harmônico a `t*0.55`. O rate usado é **½**, porque
+com `0.55 = 11/20` a repetição exata sairia de 10,2 s para **102 s**, e a seção 2
+pede fase "perfeitamente periódica".
+
+### O que a Fase 2 NÃO tocou
+
+GLB, JSON, Blender, `scripts/`, trajetória Organic, START, END, stagger e o
+easing da Organic. `git status` na Fase 2 mostrou alterações **apenas** em
+`web/src/` e nos dois arquivos de documentação. MD5 do
+`j3f-symbol-prototype.blend` continua `2587aa933c5a5f8b5a94a6962ff1993f`.
+
+---
+
+## 9. Pendências
+
+- [x] **Fase 2 — Circular Flow** — **CONCLUÍDA e aprovada visualmente**
+      (especificação em `J3F_Prompt_02_Circular_Flow_Refinado.md`)
+- [ ] Reavaliar `flowLoopDuration = 5,1 s`: ficou abaixo da faixa 6–9 s que a
+      própria spec sugeria ("se parecer spinner/loading, está rápido demais").
+      Aprovado no olho — revisitar se incomodar em tela grande.
+- [ ] Decidir se o acoplamento explícito ponteiro → amplitude do flow (seção 10
+      da spec, "**pode** aumentar tilt/depth") vale a inversão de camadas que
+      exigiria. Hoje o ponteiro já perturba a onda por ser aditivo sobre ela.
 - [ ] Ajuste visual fino da microinteração (idle amount, piece float, influence radius)
 - [x] Avaliação visual A/B Baseline × Organic — **Organic aprovada**
 - [ ] Decidir se o Baseline continua no código ou se é removido depois de o
@@ -271,22 +373,26 @@ mostra apenas `web/` como novo, e o MD5 do `j3f-symbol-prototype.blend` continua
 
 ---
 
-## 9. Próximo passo
+## 10. Próximo passo
 
-> **Avaliação visual do protótipo pelo Oktavio.**
+> **Fase 3 — não iniciada, sem escopo definido.**
 
-Abrir `http://127.0.0.1:8123/web/index.html?debug` e usar a seção **Ambient
-Motion** para alternar `Idle + Pointer` / `Idle` / `Off`.
+As Fases 1 e 2 estão fechadas, aprovadas visualmente e commitadas. Não começar a
+Fase 3 sem especificação.
 
-Julgar com o scroll parado em t = 1: a dose do idle (não pode virar screensaver),
-a velocidade, o raio e a força do campo do ponteiro, e se a identidade da marca
-continua intacta numa screenshot isolada.
+Continuam **fora de escopo** até haver pedido explícito: integração com Framer,
+deploy e pós-processamento/DOF.
 
-Nada de commit, Framer ou deploy antes disso.
+Para reabrir o protótipo:
+
+```bash
+python3 -m http.server 8123 --bind 127.0.0.1    # a partir da raiz do repo
+# http://127.0.0.1:8123/web/index.html?debug&showFlowPhase
+```
 
 ---
 
-## 10. Estado do repositório
+## 11. Estado do repositório
 
 Repositório **privado** no GitHub: <https://github.com/oktavio-eng/j3f-symbol-3d>
 (conta `oktavio-eng`). A decisão anterior de manter o repositório apenas local
@@ -298,7 +404,7 @@ que é a fonte da verdade, os `.blend`, o GLB e os previews. É IP de marca.
 | Branch | Commit | Conteúdo |
 |---|---|---|
 | `main` | `b82b453` | Fase Blender — checkpoint, preservado intocado (branch default) |
-| `feat/threejs-prototype` | `23133e0` → | Fase 1 — protótipo Three.js (branch de trabalho) |
+| `feat/threejs-prototype` | `23133e0` → | Fases 1 e 2 — protótipo Three.js + Circular Flow (branch de trabalho) |
 
 Deploy continua **fora de escopo**. Push é feito só quando pedido.
 

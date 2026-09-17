@@ -52,6 +52,7 @@ export class J3FDebugPanel {
     this._buildDamping();
     this._buildOrganic();
     this._buildSystem();
+    this._buildFlow();
     this._buildBaselineAnimation();
     this._buildAmbient();
     this._buildPointer();
@@ -244,6 +245,43 @@ export class J3FDebugPanel {
     s.append(el('p', 'j3f-debug__note', 'ambos convergem exatamente para o baseline em t = 1'));
   }
 
+  _buildFlow() {
+    const s = this._section('circular flow');
+    this._toggle(s, 'flowEnabled', 'circular flow enabled');
+    this._slider(s, 'flowAmount', 'amount (mestre)', 0, 2, 0.01);
+    this._slider(s, 'flowLoopDuration', 'loop duration (s)', 3, 16, 0.1);
+    this._slider(s, 'flowTilt', 'tilt amount (°)', 0, 6, 0.05);
+    this._slider(s, 'flowDepth', 'depth amount (BU)', 0, 0.05, 0.001);
+    this._slider(s, 'flowRadial', 'radial amount (BU)', 0, 0.08, 0.001);
+    this._slider(s, 'flowHarmonic', 'secondary harmonic', 0, 0.4, 0.005);
+    this._slider(s, 'flowContrast', 'contrast boost at END', 0, 2, 0.01);
+    this._slider(s, 'flowAssemblyFloor', 'assembly weight (piso em t=0)', 0, 1, 0.01);
+    this._toggle(s, 'flowReverse', 'inverter sentido da onda');
+    this._toggle(s, 'showFlowPhase', 'show flow phase');
+    this._readout(s, 'flowWeight', 'peso efetivo');
+
+    // tira de 14 células na ORDEM DO ANEL: a crista da onda atravessa a tira
+    // da esquerda para a direita e volta. É a leitura mais direta de que a
+    // fase percorre T1→T7→B7→B1 e não uma ordem qualquer.
+    const strip = el('div', 'j3f-debug__flowstrip');
+    this.flowCells = [];
+    for (let i = 0; i < 14; i++) {
+      const cell = el('span', 'j3f-debug__flowcell');
+      cell.title = i < 7 ? `T${i + 1}` : `B${14 - i}`;
+      strip.append(cell);
+      this.flowCells.push(cell);
+    }
+    s.append(strip);
+    s.append(
+      el(
+        'p',
+        'j3f-debug__note',
+        'onda de orientação percorrendo o anel T1→T7→B7→B1 · centros quase parados · '
+          + 'aditivo sobre a Organic e anterior ao idle/pointer',
+      ),
+    );
+  }
+
   _buildBaselineAnimation() {
     const s = this._section('baseline · coreografia');
     this._slider(s, 'maxDelay', 'stagger max', 0, 0.95, 0.005);
@@ -367,6 +405,55 @@ export class J3FDebugPanel {
       dot.style.height = `${size}px`;
       dot.style.transform = `translate(${toX(b.ndcX) - size / 2}px, ${toY(b.ndcY) - size / 2}px)`;
       dot.style.opacity = (0.18 + b.influence * 0.82).toFixed(3);
+    }
+  }
+
+  // --- overlay da fase do circular flow ------------------------------------
+
+  setFlowPhaseVisible(visible) {
+    if (visible && !this.flowLayer) {
+      const layer = el('div', 'j3f-flowphase');
+      layer.setAttribute('aria-hidden', 'true');
+      this.flowDots = [];
+      for (let i = 0; i < 14; i++) {
+        const dot = el('div', 'j3f-flowphase__dot');
+        layer.append(dot);
+        this.flowDots.push(dot);
+      }
+      document.body.append(layer);
+      this.flowLayer = layer;
+    }
+    if (this.flowLayer) this.flowLayer.style.display = visible ? 'block' : 'none';
+  }
+
+  /**
+   * Marcadores em screen space, um por lâmina, com o brilho seguindo a onda.
+   * A crista viaja pelo anel: é isso que se vê percorrendo as 14 peças.
+   */
+  updateFlowPhase(flow) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const toX = (ndc) => ((ndc + 1) / 2) * w;
+    const toY = (ndc) => ((1 - ndc) / 2) * h;
+
+    for (let i = 0; i < flow.readout.length; i++) {
+      const f = flow.readout[i];
+      // (wave + 1) / 2: 0 no vale, 1 na crista - a leitura direta da onda
+      const level = (f.wave + 1) / 2;
+
+      const dot = this.flowDots?.[i];
+      if (dot) {
+        const size = 6 + level * 20;
+        dot.style.width = `${size}px`;
+        dot.style.height = `${size}px`;
+        dot.style.transform =
+          `translate(${toX(f.ndcX) - size / 2}px, ${toY(f.ndcY) - size / 2}px)`;
+        dot.style.opacity = (0.12 + level * 0.88).toFixed(3);
+      }
+
+      // a tira do painel é indexada pelo ANEL, não pela ordem das peças
+      const cell = this.flowCells?.[f.ring];
+      if (cell) cell.style.opacity = (0.1 + level * 0.9).toFixed(3);
     }
   }
 

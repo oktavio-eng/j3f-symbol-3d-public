@@ -136,14 +136,21 @@ Previews em 1200×1400, Cycles, AgX Medium High Contrast.
 
 Fase Blender **concluída e aprovada** (checkpoint no commit `b82b453`).
 
-Fase 1 — protótipo Three.js standalone com scroll interativo — está construída em
-`web/`, aguardando avaliação visual. Zero-build: `three` vendorizado em
-`web/vendor/`, sem `node_modules`.
+Fase 1 — protótipo Three.js standalone com scroll interativo — e Fase 2 —
+**Circular Flow**, a onda de orientação que percorre o anel das 14 lâminas —
+estão em `web/`, **concluídas e aprovadas visualmente**. Zero-build: `three`
+vendorizado em `web/vendor/`, sem `node_modules`. Bateria `?selftest`: **47/47**.
 
 ```bash
 python3 -m http.server 8123 --bind 127.0.0.1
 # http://127.0.0.1:8123/web/index.html
+# http://127.0.0.1:8123/web/index.html?debug&showFlowPhase
 ```
+
+O Circular Flow **não** contradiz "sem movimento circular, órbita ou espiral"
+acima: os centros das peças ficam praticamente parados (deslocamento radial
+máximo de 0,25% da altura do símbolo). O que percorre o anel é a *orientação*,
+não a peça.
 
 Detalhes: **[docs/THREEJS_PROTOTYPE.md](docs/THREEJS_PROTOTYPE.md)**.
 Handoff entre sessões: **[PROJECT_STATE.md](PROJECT_STATE.md)**.
