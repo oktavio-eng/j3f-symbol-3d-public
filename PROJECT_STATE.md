@@ -3,9 +3,10 @@
 **Handoff entre sessões. Leia este arquivo primeiro.**
 
 Última atualização: 2026-09-17
-Fase atual: **Fase 1 — Organic APROVADA visualmente; camada de microinteração
-(idle + pointer) construída, aguardando ajuste visual**
-Fase anterior: **Fase Blender CONCLUÍDA e APROVADA** (checkpoint no commit `b82b453`)
+Fase atual: **Fase 2 — Circular Flow (a iniciar)**
+Fase anterior: **Fase 1 — protótipo Three.js CONCLUÍDA e COMMITADA**
+(`feat/threejs-prototype`, commit `23133e0`)
+Checkpoint da Fase Blender: commit `b82b453`, preservado em `main`
 
 ---
 
@@ -183,7 +184,7 @@ exportada; terá de ser recriada no front-end como env map + luzes.
 
 ---
 
-## 7. Fase 1 — protótipo Three.js (construído, não commitado)
+## 7. Fase 1 — protótipo Three.js (concluída e commitada)
 
 Vive em `web/`, dentro deste repositório. Zero-build: `three` r186 vendorizado em
 `web/vendor/`, resolvido por import map, servido por `python3 -m http.server`.
@@ -250,7 +251,9 @@ mostra apenas `web/` como novo, e o MD5 do `j3f-symbol-prototype.blend` continua
 
 ## 8. Pendências
 
-- [ ] **Ajuste visual da microinteração** (próximo passo — nada é commitado antes disso)
+- [ ] **Fase 2 — Circular Flow** (próximo passo; especificação em
+      `J3F_Prompt_02_Circular_Flow_Refinado.md`)
+- [ ] Ajuste visual fino da microinteração (idle amount, piece float, influence radius)
 - [x] Avaliação visual A/B Baseline × Organic — **Organic aprovada**
 - [ ] Decidir se o Baseline continua no código ou se é removido depois de o
       protótipo fechar
@@ -286,3 +289,21 @@ Nada de commit, Framer ou deploy antes disso.
 ## 10. Estado do repositório
 
 Git **local**, sem remote, por decisão explícita. Nada de push ou deploy.
+
+| Branch | Commit | Conteúdo |
+|---|---|---|
+| `main` | `b82b453` | Fase Blender — checkpoint, preservado intocado |
+| `feat/threejs-prototype` | `23133e0` | Fase 1 — protótipo Three.js (branch atual) |
+
+Para linearizar a história, se preferir: `git checkout main && git merge --ff-only
+feat/threejs-prototype`.
+
+### Verificação do commit
+
+O `.gitignore` tinha um padrão `build/` que derrubava silenciosamente
+`web/vendor/three/build/three.module.js` e `three.core.js` — o protótipo
+commitado não abriria. Corrigido com exceção explícita.
+
+Confirmado por clone limpo: `git clone` do branch em outro diretório, servido por
+conta própria, roda a bateria `?selftest` com **35/35 PASS**. O commit é
+auto-suficiente.
