@@ -1,0 +1,88 @@
+# ── macOS / iCloud ───────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.AppleDouble
+.LSOverride
+Icon?
+*.icloud
+
+# ── Blender: artefatos que não fazem parte do projeto ────────────────────────
+# backups automáticos de save (save_version); o build já os desativa
+*.blend1
+*.blend2
+*.blend[0-9]
+*.blend@
+# autosave / recover
+*.blend.tmp
+quit.blend
+# caches de simulação e assets gerados em runtime
+blendcache_*/
+*.bphys
+# renders de teste fora de export/
+/renders/
+/tmp/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# ── Node / front-end (Fase Three.js) ─────────────────────────────────────────
+node_modules/
+dist/
+build/
+.next/
+.cache/
+.parcel-cache/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.eslintcache
+
+# ── Logs e temporários ───────────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.scratch/
+scratch/
+
+# ── Editores / IDEs ──────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.sublime-workspace
+
+# ── Segredos ─────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VERSIONADO DE PROPÓSITO (não adicionar aos ignores acima):
+#   scripts/                          pipeline Blender
+#   docs/                             documentação
+#   README.md, PROJECT_STATE.md       documentação
+#   j3f-symbol.svg                    símbolo oficial — fonte da verdade
+#   j3f-symbol-prototype.blend        cena inicial original (não modificar)
+#   j3f-symbol-3d.blend               cena de trabalho aprovada
+#   export/j3f-symbol.glb             entrada da Fase Three.js
+#   export/j3f-symbol-states.json     entrada da Fase Three.js
+#   export/preview_*.png              previews aprovados (material + movimento)
+# ─────────────────────────────────────────────────────────────────────────────
