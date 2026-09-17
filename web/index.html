@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>J3F · símbolo 3D</title>
+    <meta
+      name="description"
+      content="Protótipo Three.js standalone: as 14 lâminas do símbolo da J3F convergem com o scroll."
+    />
+    <link rel="stylesheet" href="./src/j3f.css" />
+
+    <!-- Zero-build: nenhum node_modules, nenhum bundler. O import map resolve
+         'three' para a cópia vendorizada em web/vendor/. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three/build/three.module.js",
+          "three/addons/": "./vendor/three/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <main>
+      <section class="j3f-panel j3f-panel--intro">
+        <p class="j3f-eyebrow">J3F · fase 1</p>
+        <h1>O símbolo se monta<br />enquanto você desce.</h1>
+        <p class="j3f-lead">
+          Catorze lâminas, dispersas em profundidade e rotação, convergindo até o símbolo
+          oficial. Role para baixo.
+        </p>
+        <p class="j3f-hint" aria-hidden="true">↓</p>
+      </section>
+
+      <section id="j3f-scroll" class="j3f-scroll">
+        <div id="j3f-sticky" class="j3f-sticky">
+          <canvas id="j3f-canvas"></canvas>
+          <p id="j3f-status" class="j3f-status" role="status"></p>
+        </div>
+      </section>
+
+      <section class="j3f-panel j3f-panel--outro">
+        <h2>Montado.</h2>
+        <p class="j3f-lead">
+          O estado final é o símbolo oficial, medido no Blender — não uma aproximação.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

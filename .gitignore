@@ -42,6 +42,10 @@ env/
 node_modules/
 dist/
 build/
+# EXCECAO: o three.js vendorizado da Fase Three.js mora em web/vendor/three/build/.
+# Sem esta linha o padrao `build/` acima derruba three.module.js e three.core.js,
+# e o prototipo commitado nao abre (o import map aponta para eles).
+!web/vendor/three/build/
 .next/
 .cache/
 .parcel-cache/
@@ -85,4 +89,6 @@ scratch/
 #   export/j3f-symbol.glb             entrada da Fase Three.js
 #   export/j3f-symbol-states.json     entrada da Fase Three.js
 #   export/preview_*.png              previews aprovados (material + movimento)
+#   web/                              prototipo Three.js (Fase 1)
+#   web/vendor/three/build/           three.js vendorizado - ver excecao acima
 # ─────────────────────────────────────────────────────────────────────────────

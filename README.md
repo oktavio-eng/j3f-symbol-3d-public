@@ -134,5 +134,16 @@ Previews em 1200×1400, Cycles, AgX Medium High Contrast.
 
 ## Estado
 
-Fase Blender **concluída e aprovada**. A próxima fase é o protótipo Three.js
-standalone com scroll interativo. Veja **[PROJECT_STATE.md](PROJECT_STATE.md)**.
+Fase Blender **concluída e aprovada** (checkpoint no commit `b82b453`).
+
+Fase 1 — protótipo Three.js standalone com scroll interativo — está construída em
+`web/`, aguardando avaliação visual. Zero-build: `three` vendorizado em
+`web/vendor/`, sem `node_modules`.
+
+```bash
+python3 -m http.server 8123 --bind 127.0.0.1
+# http://127.0.0.1:8123/web/index.html
+```
+
+Detalhes: **[docs/THREEJS_PROTOTYPE.md](docs/THREEJS_PROTOTYPE.md)**.
+Handoff entre sessões: **[PROJECT_STATE.md](PROJECT_STATE.md)**.

@@ -3,8 +3,9 @@
 **Handoff entre sessões. Leia este arquivo primeiro.**
 
 Última atualização: 2026-09-17
-Fase atual: **Fase Blender CONCLUÍDA e APROVADA**
-Próxima fase: **Fase 1 — protótipo Three.js standalone com scroll interativo**
+Fase atual: **Fase 1 — Organic APROVADA visualmente; camada de microinteração
+(idle + pointer) construída, aguardando ajuste visual**
+Fase anterior: **Fase Blender CONCLUÍDA e APROVADA** (checkpoint no commit `b82b453`)
 
 ---
 
@@ -80,6 +81,11 @@ função de interpolação.
 | `scripts/j3f_config.py` | todos os parâmetros do build |
 | `scripts/build.py` | orquestrador |
 | `docs/BLENDER_PIPELINE.md` | decisões técnicas e problemas resolvidos |
+| `docs/THREEJS_PROTOTYPE.md` | documentação da Fase 1 (Three.js) |
+| `web/` | protótipo Three.js standalone (Fase 1) |
+| `web/src/j3f-animation.js` | coreografia **baseline** — não alterar |
+| `web/src/j3f-organic.js` | coreografia **organic** — aprovada, não alterar |
+| `web/src/j3f-interaction.js` | camada aditiva idle + pointer — é aqui que se experimenta |
 
 ---
 
@@ -177,30 +183,106 @@ exportada; terá de ser recriada no front-end como env map + luzes.
 
 ---
 
-## 7. Pendências
+## 7. Fase 1 — protótipo Three.js (construído, não commitado)
 
-- [ ] Criar o protótipo Three.js standalone (Fase 1)
-- [ ] Definir o environment map do Three.js (autoral — não usar asset de terceiros)
-- [ ] Avaliar o estágio ~25% da animação e ajustar easing/stagger no front-end se necessário
-- [ ] Decidir se o protótipo Three.js vive nesta pasta ou em pasta irmã
+Vive em `web/`, dentro deste repositório. Zero-build: `three` r186 vendorizado em
+`web/vendor/`, resolvido por import map, servido por `python3 -m http.server`.
+Nenhum `node_modules`, nenhum bundler.
+
+Documentação completa: **`docs/THREEJS_PROTOTYPE.md`**.
+
+```bash
+python3 -m http.server 8123 --bind 127.0.0.1    # a partir da raiz do repo
+# http://127.0.0.1:8123/web/index.html
+```
+
+Duas coreografias convivem, alternáveis no painel `?debug`:
+
+- **Baseline** — a coreografia aprovada na Fase Blender, **inalterada**
+  (`j3f-animation.js`, easeOutCubic, stagger 0.30, START→END direto).
+- **Organic** — **aprovada visualmente** (`j3f-organic.js`): estados procedurais
+  START→FLOW→PRE-ASSEMBLY→END, campo de movimento por coluna, trajetórias em
+  Bézier cúbica, rotação alinhada à tangente, stagger sobreposto 0.165,
+  respiração de root e dolly de câmera. **Nenhum estado novo é gravado no JSON.**
+
+Sobre a coreografia roda a **microinteração** (`j3f-interaction.js`), aditiva:
+
+```
+scroll → Organic → BASE POSE → ambient idle → pointer → render
+```
+
+A base pose é recapturada dos nós a cada frame e os offsets são derivados de novo
+a partir dela — nada é acumulado, logo não há drift. Com idle e pointer em zero o
+resultado é **numericamente igual** à Organic.
+
+Bateria `?selftest`: **35/35 PASS** em 1440×900, 1280×720 e 390×844, nos dois
+modos. Destaques da coreografia:
+
+| | baseline | organic |
+|---|---|---|
+| Nós associados | **14 / 14** | **14 / 14** |
+| END vs. TRS dos nós do GLB | **6,097e-07** BU | **6,097e-07** BU |
+| Root / dolly em `t = 1` | n/a | **exatamente** identidade / 1.0 |
+| START em `t = 0` | **0,000e+00** | **0,000e+00** |
+| Scroll ida e volta (histerese) | **0,000e+00** | **0,000e+00** |
+| Δ² máx (descontinuidade) | 5,41e-03 | **3,88e-05** |
+| Ordem de convergência de Δ² | 2,00× (C⁰) | **4,00× (C²)** |
+| Custo de `apply()` por frame | 1,55 µs | 3,84 µs |
+| Console | **sem erros, sem warnings** | idem |
+
+Destaques da microinteração:
+
+| | |
+|---|---|
+| Interação OFF = Organic | Δ **0,00e+00** |
+| Drift em 6000 frames (100 s) | **0,00e+00** — base intacta, idle é função pura do tempo |
+| Saída do ponteiro | converge a **exatamente 0** em 1,93 s, sem snap |
+| Damping do ponteiro 30/60/120 Hz | Δ **1,11e-16** |
+| Amplitudes (teto 0,025 BU / 1,5°) | pointer **0,0235 BU / 0,550°** |
+| Base END com idle rodando 20 s | **6,097e-07** BU · root exatamente identidade |
+| Custo total por frame | **7,01 µs** = 0,08% de um frame a 120 Hz |
+
+GLB, JSON, `.blend`, `scripts/` e previews **não foram tocados** — `git status`
+mostra apenas `web/` como novo, e o MD5 do `j3f-symbol-prototype.blend` continua
+`2587aa933c5a5f8b5a94a6962ff1993f`.
+
+---
+
+## 8. Pendências
+
+- [ ] **Ajuste visual da microinteração** (próximo passo — nada é commitado antes disso)
+- [x] Avaliação visual A/B Baseline × Organic — **Organic aprovada**
+- [ ] Decidir se o Baseline continua no código ou se é removido depois de o
+      protótipo fechar
+- [ ] Calibrar a dose de ciano: com `envSpread = 1.8` o acento ficou mais presente
+      na metade inferior — pode estar forte demais
+- [ ] Calibrar `exposure` / `envIntensity`: o AgX do Three.js é aproximação do AgX
+      Medium High Contrast do Blender, não reprodução
+- [ ] Decidir o enquadramento em retrato de celular: hoje o símbolo cai para ~25%
+      da altura porque a dispersão de `t = 0` cabe inteira no quadro; a alternativa
+      é permitir corte lateral (`FIT_MARGIN` em `web/src/j3f-framing.js`)
+- [ ] Avaliar o estágio ~25% da animação — o painel `?debug` existe para isso
+- [ ] Pós-processamento / DOF (fora do escopo da Fase 1, por decisão)
 - [ ] Integração com Framer (fase posterior, **não iniciada**)
 - [ ] Nenhum remote Git configurado — repositório é **local apenas**, por decisão
 
 ---
 
-## 8. Próxima fase
+## 9. Próximo passo
 
-> **Fase 1 — protótipo Three.js standalone com scroll interativo usando
-> `j3f-symbol.glb` + `j3f-symbol-states.json`.**
+> **Avaliação visual do protótipo pelo Oktavio.**
 
-Escopo: carregar o GLB, aplicar os estados do JSON, amarrar o progresso ao scroll,
-recriar iluminação/env map para o metal, validar a convergência até o símbolo
-oficial.
+Abrir `http://127.0.0.1:8123/web/index.html?debug` e usar a seção **Ambient
+Motion** para alternar `Idle + Pointer` / `Idle` / `Off`.
 
-Fora de escopo nesta fase: integração com Framer, deploy, commit remoto.
+Julgar com o scroll parado em t = 1: a dose do idle (não pode virar screensaver),
+a velocidade, o raio e a força do campo do ponteiro, e se a identidade da marca
+continua intacta numa screenshot isolada.
+
+Nada de commit, Framer ou deploy antes disso.
 
 ---
 
-## 9. Estado do repositório
+## 10. Estado do repositório
 
 Git **local**, sem remote, por decisão explícita. Nada de push ou deploy.
