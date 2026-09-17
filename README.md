@@ -147,3 +147,6 @@ python3 -m http.server 8123 --bind 127.0.0.1
 
 Detalhes: **[docs/THREEJS_PROTOTYPE.md](docs/THREEJS_PROTOTYPE.md)**.
 Handoff entre sessões: **[PROJECT_STATE.md](PROJECT_STATE.md)**.
+
+Repositório **privado** — contém o símbolo oficial da J3F (SVG fonte da verdade,
+`.blend`, GLB e previews). Não tornar público.

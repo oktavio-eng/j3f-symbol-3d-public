@@ -267,7 +267,7 @@ mostra apenas `web/` como novo, e o MD5 do `j3f-symbol-prototype.blend` continua
 - [ ] Avaliar o estágio ~25% da animação — o painel `?debug` existe para isso
 - [ ] Pós-processamento / DOF (fora do escopo da Fase 1, por decisão)
 - [ ] Integração com Framer (fase posterior, **não iniciada**)
-- [ ] Nenhum remote Git configurado — repositório é **local apenas**, por decisão
+- [x] Remote Git — repositório **privado** no GitHub, `oktavio-eng/j3f-symbol-3d`
 
 ---
 
@@ -288,12 +288,19 @@ Nada de commit, Framer ou deploy antes disso.
 
 ## 10. Estado do repositório
 
-Git **local**, sem remote, por decisão explícita. Nada de push ou deploy.
+Repositório **privado** no GitHub: <https://github.com/oktavio-eng/j3f-symbol-3d>
+(conta `oktavio-eng`). A decisão anterior de manter o repositório apenas local
+foi revista em 2026-09-17, com aprovação explícita.
+
+**Privado não é opcional:** o repositório contém o símbolo oficial da J3F — o SVG
+que é a fonte da verdade, os `.blend`, o GLB e os previews. É IP de marca.
 
 | Branch | Commit | Conteúdo |
 |---|---|---|
-| `main` | `b82b453` | Fase Blender — checkpoint, preservado intocado |
-| `feat/threejs-prototype` | `23133e0` | Fase 1 — protótipo Three.js (branch atual) |
+| `main` | `b82b453` | Fase Blender — checkpoint, preservado intocado (branch default) |
+| `feat/threejs-prototype` | `23133e0` → | Fase 1 — protótipo Three.js (branch de trabalho) |
+
+Deploy continua **fora de escopo**. Push é feito só quando pedido.
 
 Para linearizar a história, se preferir: `git checkout main && git merge --ff-only
 feat/threejs-prototype`.
