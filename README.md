@@ -8,6 +8,14 @@ Este repositório contém a **Fase Blender** concluída: o pipeline que transfor
 SVG oficial em geometria 3D, materiais metálicos e os estados de animação
 exportados para consumo no front-end.
 
+
+> **Repositório público — espelho das nossas contribuições.**
+> O símbolo oficial da J3F (SVG, `.blend`, `.glb`, renders) e o conteúdo do
+> cliente ficam apenas no repositório privado e foram removidos de **todo** o
+> histórico desta cópia. Por isso o protótipo de `web/` não roda sozinho daqui
+> (falta `export/j3f-symbol.glb`); a versão no ar está em
+> <https://j3f-simbolo-3d.vercel.app>.
+
 ## Objetivo
 
 - Preservar fielmente o símbolo oficial da J3F: proporções, distâncias entre as
@@ -171,5 +179,5 @@ elegibilidade + calculadora PIS/COFINS + simulador CBS/IBS). Documentação em
 **[docs/FRAMER_SITE.md](docs/FRAMER_SITE.md)**. O código dos componentes e o conteúdo
 do cliente ficam no repositório privado.
 
-Repositório **privado** — contém o símbolo oficial da J3F (SVG fonte da verdade,
-`.blend`, GLB e previews). Não tornar público.
+O repositório de trabalho é **privado** e contém o símbolo oficial da J3F (SVG
+fonte da verdade, `.blend`, GLB e previews). Esta cópia pública não os inclui.
