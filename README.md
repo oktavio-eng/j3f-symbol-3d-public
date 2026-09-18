@@ -28,7 +28,11 @@ exportados para consumo no front-end.
 ├── PROJECT_STATE.md               handoff entre sessões — leia primeiro
 ├── .gitignore
 ├── docs/
-│   └── BLENDER_PIPELINE.md        documentação técnica do pipeline
+│   ├── BLENDER_PIPELINE.md        documentação técnica do pipeline
+│   ├── THREEJS_PROTOTYPE.md       protótipo Three.js (Fases 1 e 2)
+│   ├── DEPLOY_VERCEL.md           deploy do protótipo na Vercel
+│   └── FRAMER_SITE.md             site J3F no Framer
+├── web/                           protótipo Three.js (zero-build)
 ├── scripts/                       pipeline Blender (headless, determinístico)
 │   ├── j3f_config.py              todos os parâmetros num só lugar
 │   ├── j3f_util.py                helpers (log, cor sRGB→linear, bbox)
@@ -38,7 +42,8 @@ exportados para consumo no front-end.
 │   ├── 04_states.py               root, END medido, START determinístico, easing
 │   ├── 05_export.py               GLB + JSON + verificação contra o GLB gerado
 │   ├── 06_render_previews.py      previews de material e de movimento
-│   └── build.py                   orquestra 01 → 06
+│   ├── build.py                   orquestra 01 → 06
+│   └── deploy_vercel.sh           publica web/ na Vercel
 ├── j3f-symbol.svg                 símbolo oficial (fonte da verdade)
 ├── j3f-symbol-prototype.blend     cena inicial original — NÃO MODIFICAR
 ├── j3f-symbol-3d.blend            cena de trabalho gerada pelo build
@@ -154,6 +159,17 @@ não a peça.
 
 Detalhes: **[docs/THREEJS_PROTOTYPE.md](docs/THREEJS_PROTOTYPE.md)**.
 Handoff entre sessões: **[PROJECT_STATE.md](PROJECT_STATE.md)**.
+
+Publicado na Vercel: **<https://j3f-simbolo-3d.vercel.app>** — republicar com
+`scripts/deploy_vercel.sh`. Detalhes em
+**[docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)**.
+
+### Site J3F no Framer
+
+O site institucional foi implementado no Framer a partir do Figma (home + teste de
+elegibilidade + calculadora PIS/COFINS + simulador CBS/IBS). Documentação em
+**[docs/FRAMER_SITE.md](docs/FRAMER_SITE.md)**. O código dos componentes e o conteúdo
+do cliente ficam no repositório privado.
 
 Repositório **privado** — contém o símbolo oficial da J3F (SVG fonte da verdade,
 `.blend`, GLB e previews). Não tornar público.

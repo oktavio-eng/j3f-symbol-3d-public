@@ -2,8 +2,14 @@
 
 **Handoff entre sessões. Leia este arquivo primeiro.**
 
-Última atualização: 2026-09-17
-Fase atual: **Fase 2 — Circular Flow CONCLUÍDA, aprovada visualmente e commitada**
+Última atualização: 2026-09-18
+Novidades de 2026-09-18 (ver §12 e §13):
+- **Site J3F no Framer** implementado a partir do Figma — home completa + 3 páginas
+  de ferramentas. Não publicado. Detalhes em [`docs/FRAMER_SITE.md`](docs/FRAMER_SITE.md).
+- **Protótipo Three.js publicado na Vercel:** <https://j3f-simbolo-3d.vercel.app>.
+  Detalhes em [`docs/DEPLOY_VERCEL.md`](docs/DEPLOY_VERCEL.md).
+
+Fase atual do símbolo 3D: **Fase 2 — Circular Flow CONCLUÍDA, aprovada visualmente e commitada**
 Fase anterior: **Fase 1 — protótipo Three.js CONCLUÍDA e COMMITADA**
 (`feat/threejs-prototype`, commit `23133e0`)
 Checkpoint da Fase Blender: commit `b82b453`, preservado em `main`
@@ -368,7 +374,11 @@ easing da Organic. `git status` na Fase 2 mostrou alterações **apenas** em
       é permitir corte lateral (`FIT_MARGIN` em `web/src/j3f-framing.js`)
 - [ ] Avaliar o estágio ~25% da animação — o painel `?debug` existe para isso
 - [ ] Pós-processamento / DOF (fora do escopo da Fase 1, por decisão)
-- [ ] Integração com Framer (fase posterior, **não iniciada**)
+- [ ] Integração do símbolo 3D com o site no Framer (**não iniciada** — o site em
+      si já foi implementado, ver §12)
+- [x] Deploy do protótipo na Vercel — <https://j3f-simbolo-3d.vercel.app> (§13)
+- [ ] Decidir se o deploy público é aceitável para IP de marca ou se liga a
+      Deployment Protection (ver `docs/DEPLOY_VERCEL.md`)
 - [x] Remote Git — repositório **privado** no GitHub, `oktavio-eng/j3f-symbol-3d`
 
 ---
@@ -380,8 +390,9 @@ easing da Organic. `git status` na Fase 2 mostrou alterações **apenas** em
 As Fases 1 e 2 estão fechadas, aprovadas visualmente e commitadas. Não começar a
 Fase 3 sem especificação.
 
-Continuam **fora de escopo** até haver pedido explícito: integração com Framer,
-deploy e pós-processamento/DOF.
+Continuam **fora de escopo** até haver pedido explícito: levar o símbolo 3D para
+dentro do site no Framer e pós-processamento/DOF. (O deploy do protótipo foi
+pedido e feito em 2026-09-18 — §13.)
 
 Para reabrir o protótipo:
 
@@ -406,7 +417,10 @@ que é a fonte da verdade, os `.blend`, o GLB e os previews. É IP de marca.
 | `main` | `b82b453` | Fase Blender — checkpoint, preservado intocado (branch default) |
 | `feat/threejs-prototype` | `23133e0` → | Fases 1 e 2 — protótipo Three.js + Circular Flow (branch de trabalho) |
 
-Deploy continua **fora de escopo**. Push é feito só quando pedido.
+Push é feito só quando pedido. Deploy: ver §13.
+
+A pasta `assets-3d/` (≈14 MB) está **fora do Git** de propósito: foi criada fora
+das sessões documentadas aqui e nunca foi commitada.
 
 Para linearizar a história, se preferir: `git checkout main && git merge --ff-only
 feat/threejs-prototype`.
@@ -420,3 +434,37 @@ commitado não abriria. Corrigido com exceção explícita.
 Confirmado por clone limpo: `git clone` do branch em outro diretório, servido por
 conta própria, roda a bateria `?selftest` com **35/35 PASS**. O commit é
 auto-suficiente.
+
+---
+
+## 12. Site J3F no Framer (2026-09-18)
+
+Documentação completa: [`docs/FRAMER_SITE.md`](docs/FRAMER_SITE.md).
+
+- Projeto: <https://framer.com/projects/J3F--nJk09Eu9ebzz4eJYqjUM>. **Não publicado.**
+- Fonte visual: Figma `h4FEJG3mcK6sWf2pZbmwug`, nó `684:485 — New Home` (desktop
+  1920 px apenas). O responsivo foi derivado dele: Desktop ≥ 1200, Tablet 810–1199,
+  Phone < 810.
+- Home com as 15 seções do Figma, em camadas nativas e editáveis.
+- Três páginas de ferramentas (frames "Modal" do Figma, implementados como
+  páginas): `/teste-de-elegibilidade`, `/ferramentas/calculadora-pis-cofins`,
+  `/ferramentas/simulador-cbs-ibs`.
+- Lógica e textos das ferramentas vieram do HTML do cliente
+  (`j3f-tax-scan-360_4.html`), resumido no repositório privado. Regra:
+  do HTML só conteúdo e lógica, nunca o design.
+- 4 componentes de código (teste, calculadora, simulador, funil da home);
+  código versionado no repositório privado. A cópia viva é a do Framer.
+- **Nenhum formulário envia dados ainda:** cada componente tem um controle
+  "Webhook (CRM)" vazio. WhatsApp, Meet, e-mail e política de privacidade são
+  placeholders do cliente.
+
+## 13. Deploy do protótipo na Vercel (2026-09-18)
+
+Documentação completa: [`docs/DEPLOY_VERCEL.md`](docs/DEPLOY_VERCEL.md).
+
+- <https://j3f-simbolo-3d.vercel.app> (raiz → `/web/index.html?debug`).
+- Projeto `j3f-simbolo-3d`, conta Vercel `oktavio-4322`, produção.
+- Publica só `web/` + `export/j3f-symbol.glb` + `export/j3f-symbol-states.json`.
+- Republicar: `scripts/deploy_vercel.sh` (ou `--preview`).
+- **O deploy é público** e expõe o GLB do símbolo oficial; decidir se liga
+  Deployment Protection.
