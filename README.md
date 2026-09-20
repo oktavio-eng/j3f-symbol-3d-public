@@ -39,7 +39,8 @@ exportados para consumo no front-end.
 │   ├── BLENDER_PIPELINE.md        documentação técnica do pipeline
 │   ├── THREEJS_PROTOTYPE.md       protótipo Three.js (Fases 1 e 2)
 │   ├── DEPLOY_VERCEL.md           deploy do protótipo na Vercel
-│   └── FRAMER_SITE.md             site J3F no Framer
+│   ├── FRAMER_SITE.md             site J3F no Framer
+│   └── SIZING_REFACTOR_LOG.md      refatoração responsiva do site no Framer
 ├── web/                           protótipo Three.js (zero-build)
 ├── scripts/                       pipeline Blender (headless, determinístico)
 │   ├── j3f_config.py              todos os parâmetros num só lugar
@@ -178,6 +179,9 @@ O site institucional foi implementado no Framer a partir do Figma (home + teste 
 elegibilidade + calculadora PIS/COFINS + simulador CBS/IBS). Documentação em
 **[docs/FRAMER_SITE.md](docs/FRAMER_SITE.md)**. O código dos componentes e o conteúdo
 do cliente ficam no repositório privado.
+
+A estratégia e a validação da refatoração de sizing responsivo estão em
+**[docs/SIZING_REFACTOR_LOG.md](docs/SIZING_REFACTOR_LOG.md)**.
 
 O repositório de trabalho é **privado** e contém o símbolo oficial da J3F (SVG
 fonte da verdade, `.blend`, GLB e previews). Esta cópia pública não os inclui.
